@@ -1,47 +1,51 @@
 name: Test-Build
+
 on:
   push:
     branches:
       - main
+      - develop
 
 jobs:
   test-api:
     runs-on: ubuntu-latest
     steps:
-      # Checkout the repository
-      - name: Check out repository
-        uses: actions/checkout@v3
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
 
-      # Install Node.js
-      - name: Install Node.js
-        uses: actions/setup-node@v3
+      # Install Node.js on the runner
+      - name: Install Node
+        uses: actions/setup-node@v1
         with:
-          node-version: "node"  # Use the latest stable version
+          node-version: "12.x"
 
-      # Install Newman and Reporter
-      - name: Install Newman and Reporter
+      # Install Newman and the HTML Extra Reporter
+      - name: Install newman
         run: |
           npm install -g newman
           npm install -g newman-reporter-htmlextra
 
-      # Run Postman Collection and Generate Report
-      - name: Run Postman Collection
-        run: |
-          mkdir -p testResults
-          newman run store2.postman_collection.json \
-            -r htmlextra \
-            --reporter-htmlextra-export testResults/htmlreport.html \
-            --reporter-htmlextra-darkTheme
+      # Create Directory for Test Results
+      - name: Make Directory for results
+        run: mkdir -p testResults
 
-      # Deploy to gh-pages branch
-      - name: Deploy to GitHub Pages
+      # Run the POSTMAN collection
+      - name: Run POSTMAN collection
         run: |
-          git config --global user.email "oleeluk@gmail.com"
-          git config --global user.name "oleg-lukanov"
-          git fetch origin
-          git checkout -B gh-pages
-          git rm -rf .  # Clean the branch to avoid leftovers
-          mv testResults/htmlreport.html index.html  # Rename report to index.html for easier access
-          git add index.html
-          git commit -m "Deploy test report"
-          git push origin gh-pages --force
+          newman run Demo-My.postman_collection.json -r htmlextra --reporter-htmlextra-export testResults/htmlreport.html --reporter-htmlextra-darkTheme
+
+      # Upload the contents of Test Results directory to workspace
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v2
+        with:
+          name: RunReports
+          path: testResults
+
+      # Deploy Report to GitHub Pages
+      - name: Deploy Report to GitHub Pages
+        if: always()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: testResults
