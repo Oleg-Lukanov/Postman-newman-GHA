@@ -4,13 +4,12 @@ on:
   push:
     branches:
       - main
-      - develop
 
 jobs:
   test-api:
     runs-on: ubuntu-latest
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      # Checkout the repository
       - uses: actions/checkout@v2
 
       # Install Node.js on the runner
@@ -27,19 +26,15 @@ jobs:
 
       # Create Directory for Test Results
       - name: Make Directory for results
-        run: mkdir -p testResults
+        run: mkdir -p allure-report
 
       # Run the POSTMAN collection
       - name: Run POSTMAN collection
         run: |
-          newman run Demo-My.postman_collection.json -r htmlextra --reporter-htmlextra-export testResults/htmlreport.html --reporter-htmlextra-darkTheme
-
-      # Upload the contents of Test Results directory to workspace
-      - name: Upload Test Results
-        uses: actions/upload-artifact@v2
-        with:
-          name: RunReports
-          path: testResults
+          newman run petstore.collection.json \
+          -r htmlextra \
+          --reporter-htmlextra-export allure-report/htmlreport.html \
+          --reporter-htmlextra-darkTheme
 
       # Deploy Report to GitHub Pages
       - name: Deploy Report to GitHub Pages
@@ -48,4 +43,24 @@ jobs:
         with:
           personal_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: testResults
+          publish_dir: report
+
+      # Push Report to Other Branch
+      - name: Push Report to Other Branch
+        if: always()
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git checkout -b report
+          git add -f report
+          git commit -m "Add report"
+          git push origin report --force
+      
+      # Update GitHub Pages link in README
+      - name: Update GitHub Pages link in README
+        run: |
+          REPORT_LINK="https://${{ github.oleg-lukanov }}.github.io/${{ github.Postman-newman-ghActions }}"
+          sed -i "s|Allure Report|Allure Report: [View Report](${REPORT_LINK})|" README.md
+          git add README.md
+          git commit -m "Update Allure Report link in README"
+          git push origin main
